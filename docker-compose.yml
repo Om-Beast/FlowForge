@@ -1,0 +1,108 @@
+version: '3.9'
+
+services:
+  # ───────────────────────────────────────────
+  # PostgreSQL Database
+  # ───────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: flowforge-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: flowforge
+      POSTGRES_PASSWORD: flowforge_secret
+      POSTGRES_DB: flowforge_db
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U flowforge -d flowforge_db']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - flowforge-network
+
+  # ───────────────────────────────────────────
+  # Redis (Cache + BullMQ Broker)
+  # ───────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: flowforge-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - flowforge-network
+
+  # ───────────────────────────────────────────
+  # Backend API Server
+  # ───────────────────────────────────────────
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: flowforge-server
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://flowforge:flowforge_secret@postgres:5432/flowforge_db?schema=public
+      REDIS_URL: redis://redis:6379
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      BULL_REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-change-this-in-production}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-this-in-production}
+      CORS_ORIGIN: http://localhost:3000
+      LOG_LEVEL: info
+    ports:
+      - '4000:4000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - flowforge-network
+
+  # ───────────────────────────────────────────
+  # Frontend Client
+  # ───────────────────────────────────────────
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: flowforge-client
+    restart: unless-stopped
+    ports:
+      - '3000:80'
+    depends_on:
+      - server
+    networks:
+      - flowforge-network
+
+# ───────────────────────────────────────────
+# Volumes
+# ───────────────────────────────────────────
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# ───────────────────────────────────────────
+# Networks
+# ───────────────────────────────────────────
+networks:
+  flowforge-network:
+    driver: bridge

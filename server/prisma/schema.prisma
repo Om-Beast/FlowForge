@@ -1,0 +1,216 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum WorkflowStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+}
+
+enum NodeType {
+  WEBHOOK
+  CONDITION
+  DELAY
+  EMAIL
+  HTTP_REQUEST
+  SLACK
+  TRANSFORM
+  FILTER
+}
+
+enum TriggerType {
+  WEBHOOK
+  SCHEDULE
+  MANUAL
+  EVENT
+}
+
+enum ExecutionStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+  TIMED_OUT
+}
+
+enum StepStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  SKIPPED
+  RETRYING
+}
+
+enum JobStatus {
+  ACTIVE
+  PAUSED
+  DELETED
+}
+
+enum NotificationType {
+  EXECUTION_SUCCESS
+  EXECUTION_FAILURE
+  WORKFLOW_TRIGGERED
+  SYSTEM
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  password      String
+  name          String
+  role          UserRole       @default(USER)
+  refreshToken  String?        @db.Text
+  lastLoginAt   DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  workflows     Workflow[]
+  executions    WorkflowExecution[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model Workflow {
+  id          String         @id @default(uuid())
+  name        String
+  description String?        @db.Text
+  definition  Json
+  status      WorkflowStatus @default(DRAFT)
+  triggerType TriggerType    @default(MANUAL)
+  version     Int            @default(1)
+  userId      String
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  executions  WorkflowExecution[]
+  schedules   ScheduledJob[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("workflows")
+}
+
+model WorkflowExecution {
+  id          String          @id @default(uuid())
+  workflowId  String
+  workflow    Workflow        @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User            @relation(fields: [userId], references: [id])
+  status      ExecutionStatus @default(PENDING)
+  startedAt   DateTime?
+  completedAt DateTime?
+  durationMs  Int?
+  error       String?         @db.Text
+  result      Json?
+  input       Json?
+  triggeredBy String          @default("manual")
+  jobId       String?
+  retryCount  Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  steps       ExecutionStep[]
+
+  @@index([workflowId])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("workflow_executions")
+}
+
+model ExecutionStep {
+  id          String    @id @default(uuid())
+  executionId String
+  execution   WorkflowExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  nodeId      String
+  nodeType    String
+  nodeName    String?
+  status      StepStatus @default(PENDING)
+  input       Json?
+  output      Json?
+  error       String?   @db.Text
+  startedAt   DateTime?
+  completedAt DateTime?
+  durationMs  Int?
+  retryCount  Int       @default(0)
+  order       Int       @default(0)
+
+  @@index([executionId])
+  @@index([status])
+  @@map("execution_steps")
+}
+
+model ScheduledJob {
+  id             String    @id @default(uuid())
+  workflowId     String
+  workflow       Workflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  cronExpression String
+  timezone       String    @default("UTC")
+  nextRunAt      DateTime?
+  lastRunAt      DateTime?
+  status         JobStatus @default(ACTIVE)
+  failedCount    Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([workflowId])
+  @@index([status])
+  @@index([nextRunAt])
+  @@map("scheduled_jobs")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String           @db.Text
+  isRead    Boolean          @default(false)
+  metadata  Json?
+  createdAt DateTime         @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String
+  resource   String
+  resourceId String?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([resource])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
