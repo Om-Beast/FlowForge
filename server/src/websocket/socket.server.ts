@@ -4,6 +4,7 @@ import { appConfig, socketConfig } from '../config';
 import { verifyAccessToken } from '../utils';
 import { logger } from '../utils';
 import { eventBus } from '../events';
+import { registerHandlers } from './socket.handlers';
 
 export interface SocketUser {
   id: string;
@@ -66,33 +67,8 @@ export const initializeSocketServer = (httpServer: HttpServer): SocketIOServer =
     // Join user-specific room for targeted events
     socket.join(`user:${userId}`);
 
-    // ── Room management ────────────────────────────────────────────────────
-    socket.on('join:workflow', (workflowId: string) => {
-      if (typeof workflowId !== 'string' || !workflowId.trim()) return;
-      socket.join(`workflow:${workflowId}`);
-      logger.debug('Socket joined workflow room', { socketId: socket.id, workflowId });
-    });
+    registerHandlers(socket);
 
-    socket.on('leave:workflow', (workflowId: string) => {
-      socket.leave(`workflow:${workflowId}`);
-    });
-
-    socket.on('join:execution', (executionId: string) => {
-      if (typeof executionId !== 'string' || !executionId.trim()) return;
-      socket.join(`execution:${executionId}`);
-    });
-
-    socket.on('leave:execution', (executionId: string) => {
-      socket.leave(`execution:${executionId}`);
-    });
-
-    socket.on('subscribe:queue_metrics', () => {
-      socket.join('queue:metrics');
-    });
-
-    socket.on('unsubscribe:queue_metrics', () => {
-      socket.leave('queue:metrics');
-    });
 
     socket.on('disconnect', (reason) => {
       logger.info('Socket disconnected', { socketId: socket.id, userId, reason });
