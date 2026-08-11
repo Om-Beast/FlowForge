@@ -1,5 +1,5 @@
 import { prisma } from '../../database';
-import { getRedisClient } from '../../utils';
+import { queueService } from '../queue/queue.service';
 import { ExecutionStatus, WorkflowStatus } from '../../shared/enums';
 
 export interface DashboardSummary {
@@ -52,24 +52,21 @@ export class DashboardService {
     const successRate = totalExecutions > 0 ? (successCount / totalExecutions) * 100 : 0;
 
     let redisConnected = false;
-    let waiting = 0;
-    let active = 0;
-    let failed = 0;
-    try {
-      const redis = getRedisClient();
-      await redis.ping();
-      redisConnected = true;
-      const [waitingCount, activeCount, failedCount] = await Promise.all([
-        redis.llen('workflow-execution:wait'),
-        redis.llen('workflow-execution:active'),
-        redis.zcard('workflow-execution:failed'),
-      ]);
-      waiting = waitingCount;
-      active = activeCount;
-      failed = failedCount;
-    } catch {
-      redisConnected = false;
-    }
+let waiting = 0;
+let active = 0;
+let failed = 0;
+
+try {
+  const queueStats = await queueService.getStats();
+
+  waiting = queueStats.waiting;
+  active = queueStats.active;
+  failed = queueStats.failed;
+
+  redisConnected = true;
+} catch {
+  redisConnected = false;
+}
 
     return {
       stats: {

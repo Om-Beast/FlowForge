@@ -15,13 +15,14 @@ build/
 .env.test.local
 .env.production.local
 
-# Logs
-logs/
+# Log files (but NOT source code modules named 'logs')
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+# Allow server/src/modules/logs source directory
+!server/src/modules/logs/
 
 # Runtime
 pids/
@@ -51,7 +52,6 @@ docker-compose.override.yml
 
 # Prisma
 server/prisma/*.db
-server/prisma/migrations/
 
 # Redis
 dump.rdb
