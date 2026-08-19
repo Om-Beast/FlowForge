@@ -19,7 +19,7 @@ export const useSocketStore = create<SocketState>()((set, get) => ({
     const token = useAuthStore.getState().accessToken;
     if (!token || get().socket?.connected) return;
 
-    const socket = io(import.meta.env['VITE_API_BASE_URL'] ?? 'http://localhost:3001', {
+    const socket = io(import.meta.env['VITE_WS_URL'] ?? 'http://localhost:4000', {
       auth: { token },
       transports: ['websocket', 'polling'],
       reconnection: true,

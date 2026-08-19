@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../../store/auth.store';
 import api from '../../services/api.service';
 
-type SettingsTab = 'profile' | 'security' | 'preferences' | 'api-keys' | 'theme';
+type SettingsTab = 'profile' | 'security' | 'preferences' | 'api-keys' | 'theme' | 'system';
 
 interface Tab {
   id: SettingsTab;
@@ -17,6 +17,7 @@ const TABS: Tab[] = [
   { id: 'preferences', label: 'Preferences', icon: '⚙️' },
   { id: 'api-keys', label: 'API Keys', icon: '🔑' },
   { id: 'theme', label: 'Theme', icon: '🎨' },
+  { id: 'system', label: 'System', icon: '💻' },
 ];
 
 function ProfileSettings() {
@@ -482,6 +483,55 @@ function ThemeSettings() {
   );
 }
 
+function SystemSettings() {
+  const { clearAuth } = useAuthStore();
+  const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'error'>('checking');
+  
+  useState(() => {
+    api.get('/health').then(() => setApiStatus('online')).catch(() => setApiStatus('error'));
+  });
+
+  const handleLogout = () => {
+    clearAuth();
+    window.location.href = '/auth/login';
+  };
+
+  return (
+    <div className="settings-section">
+      <div className="settings-section-header">
+        <h2 className="settings-section-title">System & Advanced</h2>
+        <p className="settings-section-desc">System information and danger zone.</p>
+      </div>
+
+      <div className="settings-form">
+        <div style={{ padding: '1rem', background: 'var(--color-surface-3)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
+          <h3 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>System Information</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
+            <span>Frontend Version: 1.0.0</span>
+            <span>OS: window</span>
+          </div>
+        </div>
+        
+        <div style={{ padding: '1rem', background: 'var(--color-surface-3)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
+          <h3 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>API Connectivity</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem' }}>
+            Status: 
+            {apiStatus === 'checking' ? <span style={{ color: 'var(--color-warning)' }}>Checking...</span> : 
+             apiStatus === 'online' ? <span style={{ color: 'var(--color-success)' }}>Online</span> : 
+             <span style={{ color: 'var(--color-error)' }}>Error</span>}
+          </div>
+        </div>
+
+        <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: 'var(--radius-md)' }}>
+          <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-error)', marginBottom: '0.5rem' }}>Danger Zone</h3>
+          <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', marginBottom: '1rem' }}>Log out of your account on this device.</p>
+          <button className="btn btn-danger" onClick={handleLogout}>Log Out</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
 
@@ -491,6 +541,7 @@ export default function SettingsPage() {
     preferences: <PreferencesSettings />,
     'api-keys': <ApiKeysSettings />,
     theme: <ThemeSettings />,
+    system: <SystemSettings />,
   };
 
   return (

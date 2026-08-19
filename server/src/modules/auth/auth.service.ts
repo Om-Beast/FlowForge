@@ -15,6 +15,7 @@ import {
 } from '../../utils';
 import { ApiError } from '../../shared/errors';
 import { UserRole } from '../../shared/enums';
+import { prisma } from '../../database';
 
 const mapUserToProfile = (user: PrismaUser): UserProfile => ({
   id: user.id,
@@ -113,5 +114,36 @@ export class AuthService {
     const user = await this.repo.findById(userId);
     if (!user) throw ApiError.notFound('User', userId);
     return mapUserToProfile(user);
+  }
+
+  async updateProfile(userId: string, updates: { name?: string; email?: string }): Promise<UserProfile> {
+    // If email is changing, check uniqueness
+    if (updates.email) {
+      const existing = await this.repo.findByEmail(updates.email);
+      if (existing && existing.id !== userId) {
+        throw ApiError.conflict('Email already in use', 'EMAIL_CONFLICT');
+      }
+    }
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { ...(updates.name ? { name: updates.name } : {}), ...(updates.email ? { email: updates.email } : {}) },
+    });
+    return mapUserToProfile(user as PrismaUser);
+  }
+
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+    const user = await this.repo.findById(userId);
+    if (!user) throw ApiError.notFound('User', userId);
+
+    const valid = await comparePassword(currentPassword, user.password);
+    if (!valid) throw ApiError.unauthorized('Current password is incorrect', 'INVALID_CURRENT_PASSWORD');
+
+    if (newPassword.length < 8) {
+      throw ApiError.unprocessable('Password must be at least 8 characters', []);
+    }
+
+    const hashed = await hashPassword(newPassword);
+    await prisma.user.update({ where: { id: userId }, data: { password: hashed } });
+    logger.info('User changed password', { userId });
   }
 }

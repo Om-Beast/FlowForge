@@ -80,7 +80,7 @@ services:
   # ───────────────────────────────────────────
   client:
     build:
-      context: ./client
+      context: ./frontend
       dockerfile: Dockerfile
     container_name: flowforge-client
     restart: unless-stopped

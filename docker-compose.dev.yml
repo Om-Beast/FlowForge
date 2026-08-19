@@ -62,17 +62,16 @@ services:
       - /app/node_modules
     command: npm run dev
 
-  # Override client for dev (Vite dev server)
   client:
     build:
-      context: ./client
+      context: ./frontend
       dockerfile: Dockerfile
       target: development
     environment:
       VITE_API_URL: http://localhost:4000/api/v1
       VITE_WS_URL: http://localhost:4000
     volumes:
-      - ./client:/app
+      - ./frontend:/app
       - /app/node_modules
     ports:
       - '5173:5173'

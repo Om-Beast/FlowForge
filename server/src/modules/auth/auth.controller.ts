@@ -49,4 +49,19 @@ export class AuthController {
       requestId: (req as AuthenticatedRequest).requestId,
     });
   }
+
+  async updateProfile(req: Request, res: Response, _next: NextFunction): Promise<void> {
+    const user = (req as AuthenticatedRequest).user;
+    const { name, email } = req.body as { name?: string; email?: string };
+    const profile = await this.service.updateProfile(user.id, { name, email });
+    sendSuccess(res, profile, { message: 'Profile updated' });
+  }
+
+  async changePassword(req: Request, res: Response, _next: NextFunction): Promise<void> {
+    const user = (req as AuthenticatedRequest).user;
+    const { currentPassword, newPassword } = req.body as { currentPassword: string; newPassword: string };
+    await this.service.changePassword(user.id, currentPassword, newPassword);
+    sendSuccess(res, null, { message: 'Password changed successfully' });
+  }
 }
+

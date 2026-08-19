@@ -12,6 +12,7 @@ import WorkflowBuilderPage from '@pages/workflows/WorkflowBuilderPage';
 import MonitoringPage from '@pages/monitoring/MonitoringPage';
 import AnalyticsPage from '@pages/analytics/AnalyticsPage';
 import LogsPage from '@pages/logs/LogsPage';
+import ExecutionDetailPage from '@pages/logs/ExecutionDetailPage';
 import SettingsPage from '@pages/settings/SettingsPage';
 
 const router = createBrowserRouter([
@@ -41,6 +42,7 @@ const router = createBrowserRouter([
           { path: 'monitoring', element: <MonitoringPage /> },
           { path: 'analytics', element: <AnalyticsPage /> },
           { path: 'logs', element: <LogsPage /> },
+          { path: 'logs/executions/:id', element: <ExecutionDetailPage /> },
           { path: 'settings', element: <SettingsPage /> },
         ],
       },

@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { useSocket } from '../../hooks/useSocket';
 import { useWorkflows, useDeleteWorkflow, useExecuteWorkflow } from '../../hooks/useWorkflows';
 import { useCreateWorkflow } from '../../hooks/useWorkflows';
 import Badge, { statusVariant } from '../../components/common/Badge';
@@ -17,6 +19,14 @@ export default function WorkflowListPage() {
   const createMutation = useCreateWorkflow();
 
   const workflows = data?.data ?? [];
+
+  const { on } = useSocket();
+  const qc = useQueryClient();
+  useEffect(() => {
+    const offC = on('execution:completed', () => qc.invalidateQueries({ queryKey: ['workflows'] }));
+    const offF = on('execution:failed', () => qc.invalidateQueries({ queryKey: ['workflows'] }));
+    return () => { (offC as ()=>void)(); (offF as ()=>void)(); };
+  }, [on, qc]);
 
   const handleNewWorkflow = async () => {
     const w = await createMutation.mutateAsync({
@@ -88,7 +98,10 @@ export default function WorkflowListPage() {
 
               <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1rem' }}>
                 <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                  <span style={{ display: 'block', fontWeight: 600, color: 'var(--color-text-secondary)' }}>{workflow._count?.executions ?? 0}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+                    {workflow._count?.executions ?? 0}
+                    {(workflow._count?.executions ?? 0) > 0 && <span className="status-dot completed" style={{width: 6, height: 6}}/>}
+                  </span>
                   Executions
                 </div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>

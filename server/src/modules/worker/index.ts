@@ -1,20 +1,14 @@
 import { Router } from 'express';
-import { workflowWorker } from './worker.service';
-import { authenticate, authorize } from '../../middleware';
-import { asyncHandler, sendSuccess } from '../../utils';
-import { UserRole } from '../../shared/enums';
-import { Request, Response } from 'express';
+import { workerController } from './worker.controller';
+import { authenticate } from '../../middleware';
+import { asyncHandler } from '../../utils';
 
 const router = Router();
 
 router.use(authenticate);
 
-router.get('/health', asyncHandler(async (_req: Request, res: Response) => {
-  sendSuccess(res, {
-    status: 'running',
-    timestamp: new Date().toISOString(),
-  });
-}));
+router.get('/health', asyncHandler(workerController.health.bind(workerController)));
+router.get('/status', asyncHandler(workerController.status.bind(workerController)));
 
 export const workerRoutes = router;
 export { WorkflowWorker, workflowWorker } from './worker.service';

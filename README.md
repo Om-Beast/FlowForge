@@ -2,317 +2,378 @@
 
 # ⚡ FlowForge
 
-### Event-Driven Workflow Automation Platform
+### Production-Grade Workflow Automation Platform
 
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
 [![Node.js](https://img.shields.io/badge/Node.js-20-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://postgresql.org)
 [![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://docker.com)
 
-**A production-grade, event-driven workflow automation engine with a visual workflow builder, distributed task queue, real-time monitoring, and comprehensive analytics.**
+**A distributed, event-driven workflow automation engine built for engineering depth — featuring a visual DAG builder, BullMQ-powered execution pipeline, durable step-level state, real-time Socket.IO monitoring, and a full analytics layer backed by PostgreSQL.**
 
-[Architecture](#architecture) · [Getting Started](#getting-started) · [Features](#features) · [API Documentation](#api-documentation) · [Contributing](#contributing)
+[Architecture](#architecture) · [Getting Started](#getting-started) · [Features](#features) · [API Reference](#api-reference) · [Tech Stack](#tech-stack)
 
 </div>
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
-FlowForge follows a **Feature-Based Modular Architecture** with clean separation of concerns, implementing the **Repository Pattern**, **Service Layer**, and **DTO Validation** across the entire stack.
+FlowForge is structured around a layered, event-driven architecture. The key insight is that workflow execution is fully decoupled from the HTTP request that triggers it — the API creates an execution record and enqueues a BullMQ job immediately, returning a `202 Accepted` with the execution ID. The client then subscribes to a Socket.IO room for live updates.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        CLIENT (React 19)                        │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────────────┐  │
-│  │ Workflow  │ │Dashboard │ │Analytics │ │   Monitoring      │  │
-│  │ Builder   │ │          │ │          │ │                   │  │
-│  │(ReactFlow)│ │(Recharts)│ │(Recharts)│ │   (Live Updates)  │  │
-│  └──────────┘ └──────────┘ └──────────┘ └───────────────────┘  │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │          State: Zustand  │  Data: React Query            │   │
-│  └──────────────────────────────────────────────────────────┘   │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │ REST API + WebSocket (Socket.IO)
-┌──────────────────────────▼──────────────────────────────────────┐
-│                      SERVER (Express + TypeScript)               │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │                    Middleware Layer                       │    │
-│  │  Auth │ RBAC │ Validation │ Rate Limit │ Request Logger  │    │
-│  └─────────────────────────────────────────────────────────┘    │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │                    Module Layer                           │    │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐   │    │
-│  │  │   Auth   │ │ Workflow │ │  Queue   │ │  Worker  │   │    │
-│  │  ├──────────┤ ├──────────┤ ├──────────┤ ├──────────┤   │    │
-│  │  │Controller│ │Controller│ │Controller│ │Controller│   │    │
-│  │  │ Service  │ │ Service  │ │ Service  │ │ Service  │   │    │
-│  │  │   Repo   │ │   Repo   │ │          │ │          │   │    │
-│  │  │  Schema  │ │  Schema  │ │          │ │          │   │    │
-│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘   │    │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐   │    │
-│  │  │Scheduler │ │Analytics │ │  Notify  │ │   Logs   │   │    │
-│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘   │    │
-│  └─────────────────────────────────────────────────────────┘    │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │                   Service Layer                          │    │
-│  │  Redis │ Logger │ Cache │ Email │ Event Emitter          │    │
-│  └─────────────────────────────────────────────────────────┘    │
-└──────────┬─────────────────────────────┬────────────────────────┘
-           │                             │
-┌──────────▼──────────┐      ┌───────────▼───────────┐
-│    PostgreSQL 16    │      │       Redis 7         │
-│  ┌──────────────┐   │      │  ┌────────────────┐   │
-│  │    Users      │   │      │  │  BullMQ Queues │   │
-│  │  Workflows    │   │      │  │  Job State     │   │
-│  │  Executions   │   │      │  │  Session Cache │   │
-│  │  Audit Logs   │   │      │  │  Rate Limits   │   │
-│  │  Schedules    │   │      │  └────────────────┘   │
-│  └──────────────┘   │      └───────────────────────┘
-└─────────────────────┘
+```mermaid
+graph TD
+    A[React 19 Frontend] -->|REST API| B[Express + TypeScript]
+    A -->|Socket.IO| B
+    B --> C[PostgreSQL / Prisma ORM]
+    B --> D[Redis]
+    D --> E[BullMQ Queue]
+    E --> F[Workflow Worker]
+    F --> G[DAG Execution Engine]
+    G --> H[Node Executors\nWEBHOOK · CONDITION · DELAY\nHTTP_REQUEST · EMAIL · SLACK\nTRANSFORM · FILTER]
+    G --> C
+    F --> I[EventBus]
+    I --> J[Socket.IO Server]
+    J --> A
 ```
 
-### System Design Highlights
+### Execution Lifecycle
 
-| Concept | Implementation |
-|---------|---------------|
-| **Event-Driven Architecture** | BullMQ distributed task queue with Redis as message broker |
-| **Workflow Engine** | DAG-based execution with conditional branching, delays, and webhooks |
-| **Worker Pool** | BullMQ workers with concurrency control, retry with exponential backoff |
-| **Dead Letter Queue** | Failed jobs automatically moved to DLQ after max retries |
-| **Real-Time Updates** | Socket.IO for live workflow execution status and monitoring |
-| **RBAC** | Role-based access control (Admin, Editor, Viewer) |
-| **Repository Pattern** | Data access abstracted through repository interfaces |
-| **Observability** | Structured logging (Winston), execution tracing, audit logs |
+```
+POST /api/v1/workflows/:id/execute
+        │
+        ▼
+  Create WorkflowExecution { status: PENDING }
+        │
+        ▼
+  Enqueue BullMQ job (executionId as jobId)
+        │
+        ▼
+  Return 202 + { executionId, socketRoom }
+        │
+        ▼  (async — Worker picks up job)
+  Update execution → RUNNING
+  Publish execution:started → Socket.IO → client
+        │
+        ▼
+  Load workflow definition from PostgreSQL
+  Validate DAG (Kahn's topological sort)
+        │
+        ▼
+  BFS traversal of nodes (respects conditional branches)
+  For each node:
+    Create ExecutionStep { status: RUNNING }
+    Run node executor (WEBHOOK / CONDITION / DELAY / ...)
+    Update ExecutionStep { status: COMPLETED | FAILED, output, durationMs }
+    Publish execution:step → Socket.IO → client
+    Propagate output to context for downstream nodes
+        │
+        ▼
+  Update WorkflowExecution { status: COMPLETED | FAILED, durationMs }
+  Publish execution:completed | execution:failed → Socket.IO → client
+  Create Notification record
+  BullMQ retries on failure (exponential backoff, configurable attempts)
+```
+
+### Module Architecture
+
+```
+server/src/
+├── modules/
+│   ├── auth/          # JWT auth, bcrypt, refresh token rotation
+│   ├── workflow/      # CRUD, DAG validation, execution trigger
+│   ├── queue/         # BullMQ queue management, metrics
+│   ├── worker/        # BullMQ worker, node executor registry
+│   ├── analytics/     # Execution time-series, summary stats
+│   ├── dashboard/     # Aggregated metrics + queue health
+│   ├── logs/          # Paginated execution history + steps
+│   ├── notifications/ # In-app notification store
+│   └── scheduler/     # Cron-based workflow scheduling
+├── events/            # Typed EventBus (Node EventEmitter)
+├── websocket/         # Socket.IO server + JWT auth middleware
+├── middleware/        # Auth, RBAC, validation (Zod), rate limit
+├── services/          # Redis, Logger (Winston), Cache
+└── shared/            # Enums, errors, interfaces, types
+```
 
 ---
 
-## ✨ Features
+## Features
 
-### 🔐 Authentication & Authorization
-- JWT-based authentication with access + refresh token rotation
-- Role-Based Access Control (Admin, Editor, Viewer)
-- Secure password hashing with bcrypt
-- Rate-limited login endpoints
+### Core Engine
+- **DAG execution** — Kahn's algorithm validates no cycles; BFS traversal executes nodes in dependency order
+- **Conditional branching** — CONDITION nodes route to `true_branch` or `false_branch` edges
+- **Durable state** — every `WorkflowExecution` and `ExecutionStep` is persisted to PostgreSQL
+- **Retry with exponential backoff** — BullMQ handles retries; `attemptsMade` tracked on executions
+- **Dead letter queue** — permanently failed jobs retained for inspection
 
-### 🔧 Visual Workflow Builder
-- Drag-and-drop workflow designer powered by React Flow
-- Node types: Trigger, Delay, Conditional, Notification, Webhook
-- Real-time workflow validation
-- Workflow versioning and status management
+### Node Types (all backend-executed)
 
-### ⚙️ Execution Engine
-- Distributed job processing with BullMQ
-- Configurable worker pool with concurrency control
-- Automatic retry with exponential backoff
-- Dead Letter Queue for permanently failed jobs
-- Step-by-step execution tracing
+| Node | Behavior |
+|------|----------|
+| `WEBHOOK` | Trigger node — captures incoming context |
+| `CONDITION` | Evaluates field comparisons (`eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `contains`, `exists`) |
+| `DELAY` | Async sleep up to 30 seconds |
+| `HTTP_REQUEST` | Real HTTP calls with configurable method, headers, body; 10s timeout |
+| `EMAIL` | Simulated send (SMTP configurable via env) |
+| `SLACK` | Posts to Slack webhook URL if configured |
+| `TRANSFORM` | Maps fields from execution context |
+| `FILTER` | Passes/blocks based on multi-condition evaluation |
 
-### ⏰ Scheduler
-- Cron-based recurring workflows
-- Delayed job scheduling
-- Repeat job patterns
-- Scheduler health monitoring
+### Real-Time Monitoring
+- Socket.IO server with JWT authentication middleware
+- User-scoped rooms (`user:<id>`) — events never leak between users
+- Workflow rooms (`workflow:<id>`) and execution rooms (`execution:<id>`)
+- Events: `execution:started`, `execution:step`, `execution:completed`, `execution:failed`, `queue:metrics`, `notification`
+- Queue metrics broadcast every 5 seconds
 
-### 📊 Analytics & Monitoring
-- Real-time queue metrics (size, throughput, latency)
-- Worker health monitoring
-- Success/failure rate tracking
-- Processing time percentiles
-- Live dashboard with Socket.IO
+### Frontend
+- Visual drag-and-drop workflow builder (React Flow / @xyflow/react)
+- Node palette with categorized node types
+- Per-node configuration panel
+- Undo/redo history
+- Auto-layout
+- Live execution status overlays on nodes (running/completed/failed)
+- Execution logs with step drill-down
+- Analytics with time-series charts (Recharts)
+- Real-time queue monitoring dashboard
 
-### 📝 Comprehensive Logging
-- Structured API request/response logs
-- Worker execution logs
-- Error tracking with stack traces
-- Audit trail for all user actions
+### Security
+- JWT access tokens (15m) + refresh tokens (7d) with rotation
+- bcrypt password hashing (12 rounds)
+- RBAC: `ADMIN` and `USER` roles
+- Zod request validation on all mutations
+- Helmet CSP headers
+- Rate limiting on API prefix
+- User isolation enforced at data layer (all queries scoped to `userId`)
+- No secrets or stack traces in API responses
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
-- **Node.js** >= 20.x
-- **Docker** & **Docker Compose**
-- **npm** >= 10.x
+- Node.js >= 20
+- Docker & Docker Compose
+- npm >= 10
 
-### Quick Start with Docker
+### Quick Start
 
 ```bash
-# Clone the repository
+# Clone and enter the repository
 git clone https://github.com/yourusername/flowforge.git
 cd flowforge
 
-# Copy environment variables
+# Copy environment file
 cp .env.example .env
 
-# Start all services (PostgreSQL, Redis, Server, Client)
+# Start infrastructure + app
 docker compose up -d
 
-# Run database migrations
+# Run database migrations (first time only)
 docker compose exec server npx prisma migrate deploy
 
-# Access the application
-# Frontend: http://localhost:3000
-# Backend:  http://localhost:4000
-# pgAdmin:  http://localhost:5050 (dev mode)
+# Frontend:  http://localhost:3000
+# Backend:   http://localhost:4000
+# API docs:  http://localhost:4000/health
 ```
 
 ### Local Development
 
 ```bash
-# Start infrastructure (PostgreSQL + Redis)
+# Start infrastructure
 docker compose up postgres redis -d
 
-# ─── Backend ───
+# Backend
 cd server
-cp .env.example .env
+cp .env.example .env          # defaults work for local Docker
 npm install
-npx prisma generate
 npx prisma migrate dev
-npm run dev
+npm run dev                   # http://localhost:4000
 
-# ─── Frontend ───
-cd client
-cp .env.example .env
+# Frontend (new terminal)
+cd frontend
 npm install
-npm run dev
+npm run dev                   # http://localhost:5173
 ```
 
-### Development with Full Docker Stack
+### Development with GUI Tools
 
 ```bash
-# Start everything with dev tools (pgAdmin, Redis Commander)
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 
-# pgAdmin:          http://localhost:5050
-# Redis Commander:  http://localhost:8081
-# Frontend (Vite):  http://localhost:5173
-# Backend:          http://localhost:4000
+# pgAdmin:           http://localhost:5050  (admin@flowforge.dev / admin)
+# Redis Commander:   http://localhost:8081
+# Frontend (Vite):   http://localhost:5173
+# Backend:           http://localhost:4000
 ```
 
 ---
 
-## 📁 Project Structure
+## Environment Configuration
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://flowforge:flowforge_secret@localhost:5432/flowforge_db` |
+| `REDIS_URL` | Redis connection URL | `redis://localhost:6379` |
+| `JWT_SECRET` | Access token signing secret | — must set in production |
+| `JWT_REFRESH_SECRET` | Refresh token signing secret | — must set in production |
+| `JWT_ACCESS_EXPIRY` | Access token TTL | `15m` |
+| `JWT_REFRESH_EXPIRY` | Refresh token TTL | `7d` |
+| `BCRYPT_SALT_ROUNDS` | bcrypt work factor | `12` |
+| `CORS_ORIGIN` | Allowed origins for CORS | `http://localhost:5173` |
+| `LOG_LEVEL` | Winston log level | `debug` |
+| `PORT` | HTTP server port | `4000` |
+| `VITE_API_URL` | Frontend API base URL | `http://localhost:4000/api/v1` |
+| `VITE_WS_URL` | Frontend WebSocket URL | `http://localhost:4000` |
+
+---
+
+## API Reference
+
+All endpoints are prefixed with `/api/v1`.
+
+### Authentication
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/auth/register` | Register new account |
+| `POST` | `/auth/login` | Login, returns access + refresh tokens |
+| `POST` | `/auth/refresh` | Exchange refresh token for new access token |
+| `GET` | `/auth/me` | Get current user |
+| `POST` | `/auth/logout` | Invalidate refresh token |
+
+### Workflows
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/workflows` | Paginated list (filter by status, search) |
+| `POST` | `/workflows` | Create workflow with definition |
+| `GET` | `/workflows/:id` | Get single workflow |
+| `PATCH` | `/workflows/:id` | Update name, definition, status |
+| `DELETE` | `/workflows/:id` | Delete workflow + cascades |
+| `POST` | `/workflows/validate` | Validate DAG without persisting |
+| `POST` | `/workflows/:id/execute` | Trigger execution → 202 + executionId |
+| `POST` | `/workflows/:id/activate` | Set status ACTIVE |
+| `POST` | `/workflows/:id/deactivate` | Set status INACTIVE |
+| `GET` | `/workflows/:id/executions` | Execution history for workflow |
+
+### Monitoring & Analytics
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/dashboard` | Aggregated stats + recent executions + queue health |
+| `GET` | `/analytics/summary` | Execution success/failure rates, avg duration |
+| `GET` | `/analytics/time-series` | Daily execution counts (up to 90 days) |
+| `GET` | `/analytics/workflow/:workflowId` | Per-workflow stats |
+| `GET` | `/queues/stats` | Live BullMQ queue depth counters |
+| `GET` | `/queues/failed` | Failed jobs list (admin only) |
+| `GET` | `/workers/health` | Worker health + concurrency |
+| `GET` | `/logs/executions` | Paginated execution history with steps |
+| `GET` | `/logs/executions/:id` | Single execution with full step detail |
+
+---
+
+## Project Structure
 
 ```
 flowforge/
-├── server/                    # Backend (Express + TypeScript)
-│   ├── prisma/                # Prisma schema & migrations
+├── server/                         # Express + TypeScript backend
+│   ├── prisma/
+│   │   ├── schema.prisma           # Full data model
+│   │   ├── migrations/             # Prisma migration history
+│   │   └── seed.ts                 # Development seed data
 │   ├── src/
-│   │   ├── config/            # Environment & service configuration
-│   │   ├── database/          # Prisma client singleton
-│   │   ├── middleware/        # Express middleware (auth, RBAC, validation, logging)
-│   │   ├── shared/            # Shared types, errors, constants, interfaces
-│   │   ├── modules/           # Feature modules (auth, workflow, queue, worker, etc.)
-│   │   ├── services/          # Cross-cutting services (Redis, Logger, Cache)
-│   │   ├── utils/             # Utility functions (crypto, JWT, helpers)
-│   │   ├── events/            # Typed event emitter system
-│   │   ├── websocket/         # Socket.IO server & handlers
-│   │   ├── app.ts             # Express app configuration
-│   │   └── server.ts          # HTTP server with graceful shutdown
+│   │   ├── config/                 # App, queue, Redis, JWT config
+│   │   ├── database/               # Prisma client singleton
+│   │   ├── events/                 # Typed EventBus
+│   │   ├── middleware/             # Auth, RBAC, Zod validation, rate limit
+│   │   ├── modules/                # Feature modules (see above)
+│   │   ├── services/               # Redis, Logger, Cache
+│   │   ├── shared/                 # Enums, errors, interfaces
+│   │   ├── utils/                  # JWT, crypto, response helpers
+│   │   ├── websocket/              # Socket.IO server + handlers
+│   │   ├── app.ts                  # Express application factory
+│   │   └── server.ts               # HTTP server + graceful shutdown
 │   ├── Dockerfile
-│   ├── package.json
-│   └── tsconfig.json
+│   └── package.json
 │
-├── client/                    # Frontend (React 19 + Vite)
+├── frontend/                       # React 19 + Vite frontend
 │   ├── src/
-│   │   ├── components/        # Reusable UI components
-│   │   ├── pages/             # Route page components
-│   │   ├── layouts/           # Layout components
-│   │   ├── hooks/             # Custom React hooks
-│   │   ├── services/          # API client & service layer
-│   │   ├── context/           # React context providers
-│   │   ├── store/             # Zustand state management
-│   │   ├── charts/            # Recharts visualization components
-│   │   ├── workflow/          # React Flow workflow builder
-│   │   ├── dashboard/         # Dashboard widget components
-│   │   ├── shared/            # Shared types, constants, utilities
-│   │   ├── App.tsx            # Router setup
-│   │   └── main.tsx           # Entry point with providers
+│   │   ├── components/             # Shared UI components (Badge, Spinner, etc.)
+│   │   ├── hooks/                  # useWorkflows, useSocket, useAnalytics, useAuth
+│   │   ├── layouts/                # RootLayout, AuthLayout, DashboardLayout
+│   │   ├── pages/                  # Route pages (dashboard, workflows, logs, etc.)
+│   │   ├── services/               # API client (axios), workflow/analytics/socket
+│   │   ├── store/                  # Zustand stores (auth, socket, notifications)
+│   │   ├── workflow/               # React Flow builder components + node registry
+│   │   ├── App.tsx                 # React Router configuration
+│   │   └── main.tsx                # App entry point
 │   ├── Dockerfile
-│   ├── package.json
-│   └── vite.config.ts
+│   └── package.json
 │
-├── docker-compose.yml         # Production compose
-├── docker-compose.dev.yml     # Development overrides
-├── .env.example               # Environment template
-├── .gitignore
+├── docker-compose.yml              # Production: postgres, redis, server, client
+├── docker-compose.dev.yml          # Dev overrides + pgAdmin + Redis Commander
+├── .env.example                    # Environment template
 └── README.md
 ```
 
 ---
 
-## 🔌 API Endpoints
+## Tech Stack
 
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| `POST` | `/api/v1/auth/register` | Register new user | ❌ |
-| `POST` | `/api/v1/auth/login` | Login | ❌ |
-| `POST` | `/api/v1/auth/refresh` | Refresh token | 🔑 |
-| `GET` | `/api/v1/workflows` | List workflows | ✅ |
-| `POST` | `/api/v1/workflows` | Create workflow | ✅ |
-| `GET` | `/api/v1/workflows/:id` | Get workflow | ✅ |
-| `PUT` | `/api/v1/workflows/:id` | Update workflow | ✅ |
-| `DELETE` | `/api/v1/workflows/:id` | Delete workflow | ✅ |
-| `POST` | `/api/v1/workflows/:id/trigger` | Trigger workflow | ✅ |
-| `GET` | `/api/v1/workflows/:id/executions` | Execution history | ✅ |
-| `GET` | `/api/v1/queue/status` | Queue metrics | ✅ Admin |
-| `GET` | `/api/v1/queue/jobs/failed` | Failed jobs | ✅ Admin |
-| `GET` | `/api/v1/workers/health` | Worker health | ✅ Admin |
-| `GET` | `/api/v1/analytics/overview` | Analytics overview | ✅ |
-| `GET` | `/api/v1/analytics/throughput` | Throughput metrics | ✅ |
-| `GET` | `/api/v1/scheduler/jobs` | Scheduled jobs | ✅ |
-| `POST` | `/api/v1/scheduler/jobs` | Create schedule | ✅ |
-| `GET` | `/api/v1/logs` | System logs | ✅ Admin |
-| `GET` | `/api/v1/logs/audit` | Audit logs | ✅ Admin |
-| `GET` | `/api/v1/dashboard/metrics` | Dashboard data | ✅ |
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| Frontend framework | React 19, TypeScript, Vite | UI rendering |
+| Styling | Tailwind CSS v4, custom CSS variables | Design system |
+| State | Zustand 5, TanStack Query v5 | Global + server state |
+| Workflow builder | @xyflow/react 12 (React Flow) | Visual DAG editor |
+| Charts | Recharts 2 | Analytics visualizations |
+| Animations | Framer Motion 12 | Page/component transitions |
+| Backend framework | Express 4, TypeScript 5 | HTTP API |
+| ORM | Prisma 5 | Type-safe database access |
+| Database | PostgreSQL 16 | Persistent workflow + execution state |
+| Queue + broker | BullMQ 5, Redis 7 | Async job processing |
+| Real-time | Socket.IO 4 | Execution event streaming |
+| Auth | JWT (jsonwebtoken), bcrypt | Authentication |
+| Validation | Zod 3 | Request schema validation |
+| Logging | Winston 3 | Structured server logging |
+| Containerization | Docker, Docker Compose | Local infrastructure |
 
 ---
 
-## 🛡️ Design Patterns & Principles
+## Key Engineering Decisions
 
-- **Clean Architecture** — Separation of concerns across layers
-- **SOLID Principles** — Single responsibility, open/closed, Liskov, interface segregation, dependency inversion
-- **Repository Pattern** — Data access abstracted behind interfaces
-- **Service Layer** — Business logic encapsulated in services
-- **DTO Validation** — Request/response validation with Zod schemas
-- **Event-Driven** — Loose coupling through event emitter and message queues
-- **Dependency Injection** — Services injected rather than hard-coded
-- **Circuit Breaker** — Graceful degradation for external service failures
+**Why BullMQ over a simple queue?**
+BullMQ provides job persistence in Redis, automatic retry with exponential backoff, dead letter queue semantics, job priority, and observable job state — all essential for a reliable execution engine. A simple in-memory queue would lose jobs on process restart.
 
----
+**Why Socket.IO over Server-Sent Events?**
+Socket.IO supports rooms (user-scoped, workflow-scoped, execution-scoped) which prevents event leakage between users. The bidirectional protocol also allows clients to subscribe/unsubscribe to specific execution rooms, reducing unnecessary traffic.
 
-## 🛠️ Tech Stack
+**Why DAG validation before execution?**
+Running Kahn's topological sort at both save and execute time prevents infinite loops and catches dangling edge references before any compute resources are consumed. The validation result is returned to the frontend immediately so users get fast feedback.
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend Framework | React 19, TypeScript, Vite |
-| Styling | Tailwind CSS v4 |
-| State Management | Zustand, React Query |
-| Workflow Builder | React Flow |
-| Charts | Recharts |
-| Animations | Framer Motion |
-| Backend Framework | Express, TypeScript |
-| Database | PostgreSQL 16, Prisma ORM |
-| Cache & Queue | Redis 7, BullMQ |
-| Authentication | JWT, bcrypt |
-| Validation | Zod |
-| Logging | Winston |
-| Real-Time | Socket.IO |
-| Containerization | Docker, Docker Compose |
+**Why per-step state in PostgreSQL?**
+Storing `ExecutionStep` records provides a durable audit trail independent of Redis job state. If the worker crashes mid-execution, the last persisted step state tells the operator exactly where execution stopped. This also powers the execution detail view without any Redis dependency.
 
 ---
 
-## 📄 License
+## Roadmap
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+- [ ] Webhook trigger support (inbound HTTP → auto-execute)
+- [ ] Cron scheduler UI
+- [ ] Parallel node execution (Promise.all for fan-out patterns)
+- [ ] Workflow versioning with rollback
+- [ ] SMTP integration for EMAIL node
+- [ ] Workflow import/export (JSON)
+- [ ] Admin panel for cross-user execution management
+- [ ] OpenTelemetry tracing
 
 ---
 
 <div align="center">
-  <strong>Built with ⚡ by FlowForge Team</strong>
+  <strong>FlowForge — built for engineering depth, not just feature breadth.</strong>
 </div>

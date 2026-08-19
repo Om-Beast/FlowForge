@@ -65,4 +65,26 @@ router.get(
   asyncHandler(controller.me.bind(controller)),
 );
 
+/**
+ * @route   PATCH /api/auth/profile
+ * @desc    Update user name or email
+ * @access  Protected
+ */
+router.patch(
+  '/profile',
+  authenticate,
+  asyncHandler(controller.updateProfile.bind(controller)),
+);
+
+/**
+ * @route   POST /api/auth/change-password
+ * @desc    Change current user's password
+ * @access  Protected
+ */
+router.post(
+  '/change-password',
+  authenticate,
+  asyncHandler(controller.changePassword.bind(controller)),
+);
+
 export { router as authRoutes };

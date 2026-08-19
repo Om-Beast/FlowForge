@@ -1,6 +1,5 @@
 import { Queue, QueueEvents } from 'bullmq';
-import IORedis from 'ioredis';
-import { createRedisClient } from '../../utils';
+import { getBullMQConnection } from '../../utils';
 import { QueueName, JobPriority } from '../../shared/enums';
 import { queueConfig } from '../../config';
 import { logger } from '../../utils';
@@ -29,16 +28,18 @@ class QueueService {
   private readonly executionQueue: Queue;
   private readonly queueEvents: QueueEvents;
   private metricsInterval: NodeJS.Timeout | null = null;
-  private readonly connection: IORedis;
-  private readonly eventsConnection: IORedis;
 
   constructor() {
-    // BullMQ requires ioredis without a keyPrefix
-    this.connection = createRedisClient({ keyPrefix: '' });
-    this.eventsConnection = createRedisClient({ keyPrefix: '' });
+    // Pass plain ConnectionOptions to BullMQ — NOT live IORedis instances.
+    // BullMQ 5 duplicates any IORedis instance it receives, cloning our
+    // retryStrategy along with it. Each normal BullMQ reconnect (blocking
+    // command cycle, QueueEvents subscribe/reconnect) then fires
+    // logger.warn("Redis retry attempt 1") producing endless false-alarm spam.
+    // With plain options, BullMQ owns and manages its own connections cleanly.
+    const connection = getBullMQConnection();
 
     this.executionQueue = new Queue(QueueName.WORKFLOW_EXECUTION, {
-      connection: this.connection,
+      connection,
       defaultJobOptions: {
         attempts: queueConfig.retry.maxAttempts,
         backoff: {
@@ -51,7 +52,7 @@ class QueueService {
     });
 
     this.queueEvents = new QueueEvents(QueueName.WORKFLOW_EXECUTION, {
-      connection: this.eventsConnection,
+      connection,
     });
 
     this.setupQueueEventListeners();
@@ -166,11 +167,10 @@ class QueueService {
 
   async close(): Promise<void> {
     if (this.metricsInterval) clearInterval(this.metricsInterval);
+    // BullMQ owns and closes its own connections when Queue/QueueEvents are closed.
     await Promise.all([
       this.executionQueue.close(),
       this.queueEvents.close(),
-      this.connection.quit(),
-      this.eventsConnection.quit(),
     ]);
     logger.info('Queue service closed');
   }

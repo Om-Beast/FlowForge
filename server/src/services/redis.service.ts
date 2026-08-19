@@ -1,2 +1,2 @@
 // Re-exported for legacy imports
-export { getRedisClient, createRedisClient, disconnectRedis, withRedis } from '../utils/redis.utils';
+export { getRedisClient, createRedisClient, getBullMQConnection, disconnectRedis, withRedis } from '../utils/redis.utils';

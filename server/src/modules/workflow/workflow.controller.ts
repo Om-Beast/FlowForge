@@ -76,6 +76,28 @@ export class WorkflowController {
     sendSuccess(res, result, { requestId: (req as AuthenticatedRequest).requestId });
   }
 
+  async getExecutions(req: Request, res: Response): Promise<void> {
+    const { id: userId } = (req as AuthenticatedRequest).user;
+    const workflowId = req.params['id']!;
+    const { page, limit } = req.query as Record<string, string>;
+    // Verify ownership first
+    await this.service.findById(workflowId, userId);
+    const { parsePaginationParams, calculateSkip, buildPaginatedResult, sendSuccess } = await import('../../utils');
+    const { prisma } = await import('../../database');
+    const { page: p, limit: l } = parsePaginationParams(page, limit);
+    const skip = calculateSkip(p, l);
+    const [data, total] = await Promise.all([
+      prisma.workflowExecution.findMany({
+        where: { workflowId, userId },
+        skip, take: l,
+        orderBy: { createdAt: 'desc' },
+        include: { steps: { orderBy: { order: 'asc' } } },
+      }),
+      prisma.workflowExecution.count({ where: { workflowId, userId } }),
+    ]);
+    sendSuccess(res, buildPaginatedResult(data, total, p, l));
+  }
+
   /**
    * POST /api/workflows/:id/execute
    * Creates a WorkflowExecution record and enqueues a BullMQ job.

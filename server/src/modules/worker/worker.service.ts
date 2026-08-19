@@ -1,7 +1,7 @@
 import { Worker, Job } from 'bullmq';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../database';
-import { createRedisClient, logger } from '../../utils';
+import { getBullMQConnection, logger } from '../../utils';
 import { QueueName, ExecutionStatus, StepStatus } from '../../shared/enums';
 import { queueConfig } from '../../config';
 import { eventBus } from '../../events';
@@ -130,12 +130,15 @@ export class WorkflowWorker {
   private worker: Worker | null = null;
 
   start(): void {
-    const connection = createRedisClient({ keyPrefix: '' });
-
     this.worker = new Worker<WorkflowJobData>(
       QueueName.WORKFLOW_EXECUTION,
       async (job: Job<WorkflowJobData>) => this.processJob(job),
-      { connection, concurrency: queueConfig.concurrency, stalledInterval: 30000, maxStalledCount: 3 },
+      {
+        connection: getBullMQConnection(),
+        concurrency: queueConfig.concurrency,
+        stalledInterval: 30000,
+        maxStalledCount: 3,
+      },
     );
 
     this.worker.on('completed', (job) => logger.info('Worker: job completed', { jobId: job.id }));
@@ -153,6 +156,13 @@ export class WorkflowWorker {
       where: { id: executionId },
       data: { status: ExecutionStatus.RUNNING, startedAt: new Date() },
     });
+
+    if (job.attemptsMade > 0) {
+      await prisma.workflowExecution.update({
+        where: { id: executionId },
+        data: { retryCount: job.attemptsMade },
+      });
+    }
 
     eventBus.publish('execution:started', { executionId, workflowId, userId });
 

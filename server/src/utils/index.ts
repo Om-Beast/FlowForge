@@ -6,4 +6,4 @@ export { parsePaginationParams, calculateSkip, buildPaginatedResult } from './pa
 export type { PaginationParams } from './pagination.utils';
 export { asyncHandler, asyncSafe, withRetry } from './async-wrapper.utils';
 export { sendSuccess, sendCreated, sendNoContent, sendPaginated } from './response.utils';
-export { getRedisClient, createRedisClient, disconnectRedis, withRedis } from './redis.utils';
+export { getRedisClient, createRedisClient, getBullMQConnection, disconnectRedis, withRedis } from './redis.utils';

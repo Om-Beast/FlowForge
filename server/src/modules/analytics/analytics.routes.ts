@@ -1,3 +1,3 @@
-import { Router } from 'express';
-const router = Router();
-export const analyticsRoutes = router;
+// analytics.routes.ts is re-exported from index.ts
+// All routes are defined in index.ts
+export { analyticsRoutes } from './index';
